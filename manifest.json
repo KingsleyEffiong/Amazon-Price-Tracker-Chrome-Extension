@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Amazon product price trackeer",
+  "name": "Amazon product price tracker",
   "version": "1.0.0",
   "description": "Track and get alerts for price drops on Amazon",
   "icons": {

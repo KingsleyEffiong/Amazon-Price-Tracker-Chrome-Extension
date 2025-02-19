@@ -110,7 +110,8 @@ if (isAmazonProductPage()) {
       <p style="font-size: 14px; text-align: left;">
       If the current price is higher. Please enter your preferred price below, and we'll notify you if the product's price drops to your desired amount.
     </p>
-    <input
+    <div style="display:flex; flex-direction:column; gap: 6px">
+<input
       type="text"
       placeholder="Enter your desired price"
       id="userPrice"
@@ -119,11 +120,13 @@ if (isAmazonProductPage()) {
     />
     <input
       type="text"
-      placeholder="Enter email account for update of price"
+      placeholder="Enter email account to get price updated"
       id="email"
       style="width: 100%; outline: none; border: none;"
       autofocus
     />
+    </div>
+    
 
             <button id="saveUrl" style="
               margin-top: 10px;

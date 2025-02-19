@@ -185,7 +185,7 @@ async function checkPriceUpdates(url, extractedPrice) {
     if (product.url === url) {
       const { userPrice, email, title } = product;
 
-      if (extractedPrice !== null && extractedPrice == userPrice) {
+      if (extractedPrice !== null && extractedPrice <= userPrice) {
         // console.log(`🚨 Price drop detected for ${title}: $${extractedPrice}`);
 
         // ✅ Send Chrome notification
