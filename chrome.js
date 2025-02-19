@@ -101,9 +101,9 @@ async function sendEmailNotification(email, productName, productUrl, newPrice) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        service_id: "service_tctv4x9",
-        template_id: "template_0myflna",
-        user_id: "-5Gyeda9jfV8xzvmc",
+        service_id: "service_gg72hpb",
+        template_id: "template_lt87md6",
+        user_id: "mC0y5y2mxapE6USYb",
         template_params: {
           to_email: email,
           subject: `Price Drop Alert: ${productName}`,
