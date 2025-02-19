@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "Amazon product price trackeer",
+  "version": "1.0.0",
+  "description": "Track and get alerts for price drops on Amazon",
+  "icons": {
+    "48": "image/image.png",
+    "128": "image/image.png"
+  },
+  "action": {
+    "default_popup": ""
+  },
+  "host_permissions": ["https://www.amazon.com/*"],
+  "background": {
+    "service_worker": "chrome.js",
+    "type": "module"
+  },
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "tabs",
+    "notifications",
+    "alarms"
+  ],
+  "content_scripts": [
+    {
+      "js": ["script.js", "chrome.js"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
