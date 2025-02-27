@@ -67,11 +67,19 @@ if (isAmazonProductPage()) {
 
   // Function to extract product details
   function extractProductData() {
-    if (!isAmazonProductPage()) return;
+    if (!isAmazonProductPage()) {
+      console.log("Not amazon web page");
+      return;
+    } else {
+      console.log("It is an amazon web page");
+    }
 
     try {
       const title = document.querySelector("#productTitle")?.innerText.trim();
-      const price = document.querySelector(".a-price-whole")?.innerText.trim();
+      let price = document
+        .querySelector(".a-price-whole")
+        ?.innerText.trim()
+        .replace(".", "");
       console.log(price);
       const priceSymbol = document
         .querySelector(".a-price-symbol")
@@ -83,6 +91,7 @@ if (isAmazonProductPage()) {
       const imageAlt = document.querySelector("#landingImage img")?.alt;
       const url = window.location.href;
 
+      console.log(title, price, image);
       // Ensure extracted data is valid
       if (title && price && image) {
         // Populate the modal with extracted data
@@ -110,7 +119,14 @@ if (isAmazonProductPage()) {
       <p style="font-size: 14px; text-align: left;">
       If the current price is higher. Please enter your preferred price below, and we'll notify you if the product's price drops to your desired amount.
     </p>
-    <div style="display:flex; flex-direction:column; gap: 6px">
+    <div style="display:flex; flex-direction:column; gap: 6px; justify-content-center; align-items:center">
+        <input
+      type="text"
+      placeholder="Enter email account to get price updated"
+      id="email"
+      style="width: 100%; outline: none; border: none;"
+      autofocus
+    />
 <input
       type="text"
       placeholder="Enter your desired price"
@@ -118,16 +134,8 @@ if (isAmazonProductPage()) {
       style="width: 100%; outline: none; border: none;"
       autofocus
     />
-    <input
-      type="text"
-      placeholder="Enter email account to get price updated"
-      id="email"
-      style="width: 100%; outline: none; border: none;"
-      autofocus
-    />
     </div>
     
-
             <button id="saveUrl" style="
               margin-top: 10px;
               width: 100%;
@@ -164,6 +172,10 @@ if (isAmazonProductPage()) {
           .addEventListener("click", function () {
             const userPrice = document.getElementById("userPrice").value || "0";
             const email = document.getElementById("email").value || "";
+            if (!email.trim() || !userPrice.trim()) {
+              alert("Input field");
+              return;
+            }
             chrome.runtime.sendMessage({
               action: "saveProduct",
               data: {
@@ -234,6 +246,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     let priceWhole = doc.querySelector(".a-price-whole");
     if (priceWhole) {
       let price = priceWhole.textContent.replace(".", "").trim();
+      console.log(price);
 
       // ✅ Send extracted price back to background script
       chrome.runtime.sendMessage({
