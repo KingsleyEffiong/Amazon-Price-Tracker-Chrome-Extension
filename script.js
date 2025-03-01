@@ -244,6 +244,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     // ✅ Extract Amazon price
     let priceWhole = doc.querySelector(".a-price-whole");
+    console.log(priceWhole);
     if (priceWhole) {
       let price = priceWhole.textContent.replace(".", "").trim();
       console.log(price);

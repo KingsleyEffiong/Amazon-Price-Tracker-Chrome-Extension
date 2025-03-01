@@ -68,7 +68,7 @@ async function saveUrl(datas) {
     // ✅ Create Chrome Notification for error
     chrome.notifications.create(`product-${Date.now()}`, {
       type: "basic",
-      iconUrl: "image/image.png", // Replace with your own icon
+      iconUrl: "image/image.png",
       title: "Tracking error",
       message: error.message,
       priority: 2,
@@ -95,7 +95,14 @@ async function fetchTrackedProducts() {
 }
 
 // ✅ Send email notification when price drops
-async function sendEmailNotification(email, productName, productUrl, newPrice) {
+async function sendEmailNotification(
+  email,
+  productName,
+  productUrl,
+  newPrice,
+  message,
+  heading
+) {
   try {
     await fetch("https://api.emailjs.com/api/v1.0/email/send", {
       method: "POST",
@@ -106,8 +113,8 @@ async function sendEmailNotification(email, productName, productUrl, newPrice) {
         user_id: "mC0y5y2mxapE6USYb",
         template_params: {
           to_email: email,
-          subject: `Price Drop Alert: ${productName}`,
-          message: `The price of ${productName} has dropped to $${newPrice}.\nCheck it out here: ${productUrl}`,
+          subject: `${heading} ${productName}`,
+          message: `${message} Check it out here: ${productUrl}`,
         },
       }),
     });
@@ -136,9 +143,9 @@ async function sendEmailNotification(email, productName, productUrl, newPrice) {
 async function fetchCurrentPrice(productUrl) {
   try {
     const response = await fetch(
-      `https://api.scrapingdog.com/scrape?api_key=67b0e510b09b2f2ecd38c6bd&url=${encodeURIComponent(
+      `http://api.scraperapi.com?api_key=d82f154a4b354c47601854fea9fa6113&url=${encodeURIComponent(
         productUrl
-      )}&dynamic=true`
+      )}`
     );
     const html = await response.text();
     console.log(html);
@@ -178,82 +185,93 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 // ✅ Check for price updates
+
 async function checkPriceUpdates(url, extractedPrice) {
   const products = await fetchTrackedProducts();
+  let message;
+  let heading;
 
   for (const product of products) {
     if (product.url === url) {
+      const storedData = await chrome.storage.sync.get("userId");
+      const storedUserId = storedData.userId;
       const { userPrice, email, title, price, priceHistory = [] } = product;
 
-      if (extractedPrice < price) {
-        // ✅ Send Chrome notification
-        chrome.notifications.create(`price-drop-${Date.now()}`, {
-          type: "basic",
-          iconUrl: "image/image.png",
-          title: "Price Drop Alert!",
-          message: `The price of ${title} is now $${extractedPrice}, but it has not reached your desired price yet.`,
-          priority: 2,
-        });
-        sendEmailNotification(email, title, url, extractedPrice);
-      }
+      // ✅ If the price has changed, update Firestore
+      if (extractedPrice !== null && extractedPrice !== price) {
+        console.log("Extracted price", extractedPrice);
+        console.log("Previous price", price);
+        console.log("User target price", userPrice);
 
-      if (extractedPrice !== null && extractedPrice <= userPrice) {
-        // ✅ Send Chrome notification
-        chrome.notifications.create(`price-drop-${Date.now()}`, {
-          type: "basic",
-          iconUrl: "image/image.png",
-          title: "Price Drop Alert!",
-          message: `The price of ${title} is now $${extractedPrice}.`,
-          priority: 2,
-        });
-
-        // ✅ Send email alert
-        sendEmailNotification(email, title, url, extractedPrice);
-      }
-
-      if (extractedPrice > price) {
         try {
-          // Get user ID from Chrome storage
-          const storedData = await chrome.storage.sync.get("userId");
-          let userDocId = storedData.userId;
-
           // Reference to Firestore document
-          const userDocRef = userDocId
-            ? doc(db, "saveProduct", userDocId)
-            : await addDoc(collection(db, "saveProduct"), { products: [] });
+          const userDocRef = doc(db, "saveProduct", storedUserId);
 
-          if (!userDocId) {
-            userDocId = userDocRef.id;
-            await chrome.storage.sync.set({ userId: userDocId });
-          }
-
-          // Update price history and price
-          const updatedProduct = {
-            ...product,
+          // Create new price entry
+          const newPriceEntry = {
             price: extractedPrice,
-            priceHistory: [
-              ...priceHistory,
-              { price: extractedPrice, timestamp: Timestamp.now() },
-            ],
+            timestamp: Timestamp.now(),
           };
 
+          // ✅ Update Firestore document
           await updateDoc(userDocRef, {
-            products: arrayUnion(updatedProduct),
+            price: extractedPrice, // Update the latest price
+            priceHistory: arrayUnion(newPriceEntry), // Append to price history
           });
 
-          // ✅ Create Chrome Notification
-          chrome.notifications.create(`track-${Date.now()}`, {
-            type: "basic",
-            iconUrl: "image/image.png",
-            title: "Tracking Updated",
-            message: `The price of ${title} has increased to $${extractedPrice}.`,
-            priority: 2,
-          });
+          // ✅ Price Decreased Notification
+          if (extractedPrice < price) {
+            chrome.notifications.create(`price-drop-${Date.now()}`, {
+              type: "basic",
+              iconUrl: "image/image.png",
+              title: "Price Drop Alert!",
+              message: `The price of ${title} is now $${extractedPrice}.`,
+              priority: 2,
+            });
+            message = `The price of ${title} is now $${extractedPrice}.`;
+            heading = "Price Drop Alert!";
+          }
+
+          // ✅ Price Matches or Drops Below User's Target
+          if (extractedPrice <= userPrice) {
+            chrome.notifications.create(`price-match-${Date.now()}`, {
+              type: "basic",
+              iconUrl: "image/image.png",
+              title: "Great News! 🎉",
+              message: `The price of ${title} is now $${extractedPrice}, matching your desired price!`,
+              priority: 2,
+            });
+            message = `The price of ${title} is now $${extractedPrice}, matching your desired price!`;
+            heading = "Great News! 🎉";
+          }
+
+          // ✅ Price Increased Notification
+          if (extractedPrice > price) {
+            chrome.notifications.create(`price-increase-${Date.now()}`, {
+              type: "basic",
+              iconUrl: "image/image.png",
+              title: "Tracking Updated",
+              message: `The price of ${title} has increased to $${extractedPrice}.`,
+              priority: 2,
+            });
+            message = `The price of ${title} has increased to $${extractedPrice}.`;
+            heading = "Tracking Updated";
+          }
+
+          // ✅ Send Email Notification (For Any Change)
+          sendEmailNotification(
+            email,
+            title,
+            url,
+            extractedPrice,
+            message,
+            heading
+          );
         } catch (error) {
           console.error("❌ Error saving price update:", error);
 
-          // ✅ Create Chrome Notification for error
-          chrome.notifications.create(`product-${Date.now()}`, {
+          // Notify user of error
+          chrome.notifications.create(`error-${Date.now()}`, {
             type: "basic",
             iconUrl: "image/image.png",
             title: "Tracking Error",
@@ -266,7 +284,7 @@ async function checkPriceUpdates(url, extractedPrice) {
   }
 }
 
-chrome.alarms.create("priceCheck", { periodInMinutes: 1440 }); // 1440 minutes = 24 hours
+chrome.alarms.create("priceCheck", { periodInMinutes: 1 }); // 1440 minutes = 24 hours
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === "priceCheck") {
