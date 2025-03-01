@@ -201,7 +201,7 @@ async function checkPriceUpdates(url, extractedPrice) {
       console.log("User target price", userPrice);
 
       // ✅ Ensure extractedPrice is valid and different from the stored price
-      if (extractedPrice === price) {
+      if (extractedPrice == price) {
         console.log("Price and extractedPrice are the same");
         return;
       }
@@ -239,17 +239,27 @@ async function checkPriceUpdates(url, extractedPrice) {
           }
 
           // ✅ Notifications
-          if (extractedPrice < price) {
-            chrome.notifications.create(`price-drop-${Date.now()}`, {
-              type: "basic",
-              iconUrl: "image/image.png",
-              title: "Price Drop Alert!",
-              message: `The price of ${title} is now $${extractedPrice}.`,
-              priority: 2,
-            });
-            message = `The price of ${title} is now $${extractedPrice}.`;
-            heading = "Price Drop Alert!";
-          }
+          // if (extractedPrice < price) {
+          //   chrome.notifications.create(`price-drop-${Date.now()}`, {
+          //     type: "basic",
+          //     iconUrl: "image/image.png",
+          //     title: "Price Drop Alert!",
+          //     message: `The price of ${title} is now $${extractedPrice}.`,
+          //     priority: 2,
+          //   });
+          //   message = `The price of ${title} is now $${extractedPrice}.`;
+          //   heading = "Price Drop Alert!";
+
+          //   // ✅ Send Email Notification
+          //   sendEmailNotification(
+          //     email,
+          //     title,
+          //     url,
+          //     extractedPrice,
+          //     message,
+          //     heading
+          //   );
+          // }
 
           if (extractedPrice <= userPrice) {
             chrome.notifications.create(`price-match-${Date.now()}`, {
@@ -261,6 +271,15 @@ async function checkPriceUpdates(url, extractedPrice) {
             });
             message = `The price of ${title} is now $${extractedPrice}, matching your desired price!`;
             heading = "Great News! 🎉";
+            // ✅ Send Email Notification
+            sendEmailNotification(
+              email,
+              title,
+              url,
+              extractedPrice,
+              message,
+              heading
+            );
           }
 
           if (extractedPrice > price) {
@@ -273,17 +292,16 @@ async function checkPriceUpdates(url, extractedPrice) {
             });
             message = `The price of ${title} has increased to $${extractedPrice}.`;
             heading = "Tracking Updated";
+            // ✅ Send Email Notification
+            sendEmailNotification(
+              email,
+              title,
+              url,
+              extractedPrice,
+              message,
+              heading
+            );
           }
-
-          // ✅ Send Email Notification
-          sendEmailNotification(
-            email,
-            title,
-            url,
-            extractedPrice,
-            message,
-            heading
-          );
         } catch (error) {
           console.error("❌ Error saving price update:", error);
 
@@ -301,7 +319,7 @@ async function checkPriceUpdates(url, extractedPrice) {
   }
 }
 
-chrome.alarms.create("priceCheck", { periodInMinutes: 1 }); // 1440 minutes = 24 hours
+chrome.alarms.create("priceCheck", { periodInMinutes: 1440 }); // 1440 minutes = 24 hours
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === "priceCheck") {
