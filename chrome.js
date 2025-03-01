@@ -196,30 +196,49 @@ async function checkPriceUpdates(url, extractedPrice) {
       const storedData = await chrome.storage.sync.get("userId");
       const storedUserId = storedData.userId;
       const { userPrice, email, title, price, priceHistory = [] } = product;
+      console.log("Extracted price", extractedPrice);
+      console.log("Previous price", price);
+      console.log("User target price", userPrice);
 
-      // ✅ If the price has changed, update Firestore
+      // ✅ Ensure extractedPrice is valid and different from the stored price
+      if (extractedPrice === price) {
+        console.log("Price and extractedPrice are the same");
+        return;
+      }
       if (extractedPrice !== null && extractedPrice !== price) {
-        console.log("Extracted price", extractedPrice);
-        console.log("Previous price", price);
-        console.log("User target price", userPrice);
-
         try {
-          // Reference to Firestore document
+          // Reference Firestore document
           const userDocRef = doc(db, "saveProduct", storedUserId);
 
-          // Create new price entry
+          // Retrieve existing product data
+          const userDocSnap = await getDoc(userDocRef);
+          let existingData = userDocSnap.exists() ? userDocSnap.data() : {};
+          let existingPriceHistory = existingData.priceHistory || [];
+
+          // ✅ Create a new price entry
           const newPriceEntry = {
+            url, // Store the product URL inside the object
             price: extractedPrice,
             timestamp: Timestamp.now(),
           };
 
-          // ✅ Update Firestore document
-          await updateDoc(userDocRef, {
-            price: extractedPrice, // Update the latest price
-            priceHistory: arrayUnion(newPriceEntry), // Append to price history
-          });
+          // ✅ Prevent duplicate price entries
+          const lastEntry =
+            existingPriceHistory.length > 0
+              ? existingPriceHistory[existingPriceHistory.length - 1]
+              : null;
 
-          // ✅ Price Decreased Notification
+          if (!lastEntry || lastEntry.price !== extractedPrice) {
+            existingPriceHistory.push(newPriceEntry);
+
+            // ✅ Update Firestore
+            await updateDoc(userDocRef, {
+              price: extractedPrice, // Store the latest price
+              priceHistory: arrayUnion(newPriceEntry), // Append new price entry
+            });
+          }
+
+          // ✅ Notifications
           if (extractedPrice < price) {
             chrome.notifications.create(`price-drop-${Date.now()}`, {
               type: "basic",
@@ -232,7 +251,6 @@ async function checkPriceUpdates(url, extractedPrice) {
             heading = "Price Drop Alert!";
           }
 
-          // ✅ Price Matches or Drops Below User's Target
           if (extractedPrice <= userPrice) {
             chrome.notifications.create(`price-match-${Date.now()}`, {
               type: "basic",
@@ -245,7 +263,6 @@ async function checkPriceUpdates(url, extractedPrice) {
             heading = "Great News! 🎉";
           }
 
-          // ✅ Price Increased Notification
           if (extractedPrice > price) {
             chrome.notifications.create(`price-increase-${Date.now()}`, {
               type: "basic",
@@ -258,7 +275,7 @@ async function checkPriceUpdates(url, extractedPrice) {
             heading = "Tracking Updated";
           }
 
-          // ✅ Send Email Notification (For Any Change)
+          // ✅ Send Email Notification
           sendEmailNotification(
             email,
             title,
