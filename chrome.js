@@ -184,113 +184,84 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
-// ✅ Check for price updates
-
 async function checkPriceUpdates(url, extractedPrice) {
-  const products = await fetchTrackedProducts();
-  let message;
-  let heading;
+  try {
+    const products = await fetchTrackedProducts();
+    let message;
+    let heading;
 
-  for (const product of products) {
-    if (product.url === url) {
-      const storedData = await chrome.storage.sync.get("userId");
-      const storedUserId = storedData.userId;
-      const { userPrice, email, title, price } = product;
-
-      // Convert values to numbers
-      const extractedPriceNum = Number(extractedPrice);
-      const userPriceNum = Number(userPrice);
-      const prevPriceNum = Number(price);
-
-      console.log(
-        "Extracted price:",
-        extractedPriceNum,
-        typeof extractedPriceNum
-      );
-      console.log("Previous price:", prevPriceNum, typeof prevPriceNum);
-      console.log("User target price:", userPriceNum, typeof userPriceNum);
-
-      // Ensure extractedPrice is valid and different from the stored price
-      if (isNaN(extractedPriceNum) || extractedPriceNum === prevPriceNum) {
-        console.log("No price change detected or invalid price.");
-        chrome.notifications.create(`price-remains-${Date.now()}`, {
-          type: "basic",
-          iconUrl: "image/image.png",
-          title: "Price still remains the same",
-          message: `The price of ${title} remains $${prevPriceNum}. No change detected.`,
-          priority: 2,
-        });
-        message = `The price of ${title} remains $${prevPriceNum}. No change detected.`;
-        heading = "Price still remains the same";
-
-        sendEmailNotification(
+    for (const product of products) {
+      if (product.url === url) {
+        const storedData = await chrome.storage.sync.get("userId");
+        const storedUserId = storedData.userId;
+        const {
+          userPrice,
           email,
           title,
-          url,
-          extractedPriceNum,
-          message,
-          heading
-        );
-        return; // ✅ Exit early to avoid unnecessary checks
-      }
+          price,
+          priceHistory = [],
+          notifications = [],
+        } = product;
 
-      try {
-        // ✅ Price Drop Alert
-        if (extractedPriceNum < prevPriceNum) {
-          chrome.notifications.create(`price-drop-${Date.now()}`, {
-            type: "basic",
-            iconUrl: "image/image.png",
-            title: "Price Drop Alert!",
-            message: `The price of ${title} dropped from $${prevPriceNum} to $${extractedPriceNum}.`,
-            priority: 2,
-          });
+        const extractedPriceNum = Number(extractedPrice);
+        const userPriceNum = Number(userPrice);
+        const prevPriceNum = Number(price);
+
+        if (isNaN(extractedPriceNum) || extractedPriceNum === prevPriceNum) {
+          message = `The price of ${title} remains $${prevPriceNum}. No change detected.`;
+          heading = "Price still remains the same";
+        } else if (extractedPriceNum < prevPriceNum) {
           message = `The price of ${title} dropped from $${prevPriceNum} to $${extractedPriceNum}.`;
           heading = "Price Drop Alert!";
-
-          sendEmailNotification(
-            email,
-            title,
-            url,
-            extractedPriceNum,
-            message,
-            heading
-          );
-        }
-
-        // ✅ User Target Price Reached
-        if (!isNaN(userPriceNum) && extractedPriceNum <= userPriceNum) {
-          chrome.notifications.create(`price-match-${Date.now()}`, {
-            type: "basic",
-            iconUrl: "image/image.png",
-            title: "Great News! 🎉",
-            message: `The price of ${title} is now $${extractedPriceNum}, matching your desired price!`,
-            priority: 2,
-          });
+        } else if (!isNaN(userPriceNum) && extractedPriceNum <= userPriceNum) {
           message = `The price of ${title} is now $${extractedPriceNum}, matching your desired price!`;
           heading = "Great News! 🎉";
-
-          sendEmailNotification(
-            email,
-            title,
-            url,
-            extractedPriceNum,
-            message,
-            heading
-          );
-        }
-
-        // ✅ Price Increase Alert
-        if (extractedPriceNum > prevPriceNum) {
-          chrome.notifications.create(`price-increase-${Date.now()}`, {
-            type: "basic",
-            iconUrl: "image/image.png",
-            title: "Tracking Updated",
-            message: `The price of ${title} has increased to $${extractedPriceNum}.`,
-            priority: 2,
-          });
+        } else if (extractedPriceNum > prevPriceNum) {
           message = `The price of ${title} has increased to $${extractedPriceNum}.`;
           heading = "Tracking Updated";
+        }
 
+        if (message) {
+          // Create notification in Chrome
+          chrome.notifications.create(`price-update-${Date.now()}`, {
+            type: "basic",
+            iconUrl: "image/image.png",
+            title: heading,
+            message: message,
+            priority: 2,
+          });
+
+          // Update Firestore with the new notification
+          const userDocRef = doc(db, "saveProduct", storedUserId);
+          const userSnapshot = await getDoc(userDocRef);
+
+          if (userSnapshot.exists()) {
+            const data = userSnapshot.data().products;
+            const productIndex = data.findIndex((item) => item.url === url);
+
+            if (productIndex !== -1) {
+              data[productIndex].price = extractedPriceNum;
+              data[productIndex].priceHistory = [
+                ...priceHistory,
+                { price: extractedPriceNum, timestamp: Date.now() },
+              ];
+              data[productIndex].notifications = [
+                ...notifications,
+                {
+                  title: heading,
+                  product: title,
+                  message: message,
+                  url: url,
+                  timestamp: Date.now(),
+                },
+              ];
+
+              // Update Firestore
+              await updateDoc(userDocRef, { products: data });
+            }
+          }
+
+          // Send email notification
           sendEmailNotification(
             email,
             title,
@@ -300,19 +271,17 @@ async function checkPriceUpdates(url, extractedPrice) {
             heading
           );
         }
-      } catch (error) {
-        console.error("❌ Error saving price update:", error);
-
-        // Notify user of error
-        chrome.notifications.create(`error-${Date.now()}`, {
-          type: "basic",
-          iconUrl: "image/image.png",
-          title: "Tracking Error",
-          message: error.message,
-          priority: 2,
-        });
       }
     }
+  } catch (error) {
+    console.error("❌ Error checking price updates:", error);
+    chrome.notifications.create(`error-${Date.now()}`, {
+      type: "basic",
+      iconUrl: "image/image.png",
+      title: "Tracking Error",
+      message: error.message,
+      priority: 2,
+    });
   }
 }
 
