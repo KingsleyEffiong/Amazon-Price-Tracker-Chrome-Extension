@@ -61,6 +61,14 @@ async function saveUrl(datas) {
 
       userDocId = datas.userId; // Use the userId from content script
       await chrome.storage.sync.set({ userId: userDocId }); // Save it in storage
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs.length > 0) {
+          chrome.tabs.sendMessage(tabs[0].id, {
+            action: "sendUserId",
+            userId: userDocId,
+          });
+        }
+      });
     }
 
     // Remove `userId` from datas before saving
@@ -335,25 +343,25 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
-chrome.storage.sync.get(["userId"], (result) => {
-  if (!result.userId) {
-    // No ID found, tell content script to show the input
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (tabs.length > 0) {
-        chrome.tabs.sendMessage(tabs[0].id, {
-          action: "No Id",
-        });
-      }
-    });
-  } else {
-    // ID exists, tell content script to hide the input
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (tabs.length > 0) {
-        chrome.tabs.sendMessage(tabs[0].id, {
-          action: "Has Id",
-          userId: result.userId, // Send the stored ID
-        });
-      }
-    });
-  }
-});
+// chrome.storage.sync.get(["userId"], (result) => {
+//   if (!result.userId) {
+//     // No ID found, tell content script to show the input
+//     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+//       if (tabs.length > 0) {
+//         chrome.tabs.sendMessage(tabs[0].id, {
+//           action: "No Id",
+//         });
+//       }
+//     });
+//   } else {
+//     // ID exists, tell content script to hide the input
+//     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+//       if (tabs.length > 0) {
+//         chrome.tabs.sendMessage(tabs[0].id, {
+//           action: "Has Id",
+//           userId: result.userId, // Send the stored ID
+//         });
+//       }
+//     });
+//   }
+// });

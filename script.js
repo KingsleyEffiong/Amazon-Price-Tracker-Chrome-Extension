@@ -6,6 +6,7 @@ function isAmazonProductPage() {
   );
 }
 
+const userId = localStorage.getItem("userId");
 // Only run the script if it's a product page
 if (isAmazonProductPage()) {
   // Create the floating tracker icon
@@ -163,6 +164,25 @@ if (isAmazonProductPage()) {
           container.style.opacity = "1";
         }, 50);
 
+        if (userId) {
+          const userIdInput = document.getElementById("userId");
+          console.log(userIdInput);
+          if (userIdInput) {
+            userIdInput.style.display = "none";
+          } else {
+            // Do nothing, or add a log for debugging
+            console.error("Element with id 'userId' not found");
+          }
+        }
+        if (!userId) {
+          chrome.runtime.onMessage.addListener(
+            (message, sender, sendResponse) => {
+              if (message.action === "sendUserId") {
+                localStorage.setItem("userId", message.userId);
+              }
+            }
+          );
+        }
         // Close modal event
         document
           .getElementById("closePopup")
@@ -258,8 +278,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "parseAmazonHTML") {
-    // console.log("✅ Received Amazon HTML for extraction");
-
     // ✅ Create a temporary DOM parser
     const parser = new DOMParser();
     const doc = parser.parseFromString(message.html, "text/html");
@@ -280,24 +298,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     } else {
       // console.log("❌ Price not found on the page.");
       alert("❌ Price not found on the page.");
-    }
-  }
-});
-
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.action === "No Id") {
-    // No ID, show the input field
-    const inputField = document.getElementById("userId");
-    if (inputField) {
-      inputField.style.display = "block"; // Show the input field
-    }
-  }
-
-  if (message.action === "Has Id") {
-    // ID exists, remove the input field
-    const inputField = document.getElementById("userId");
-    if (inputField) {
-      inputField.style.display = "none"; // Hide the input field
     }
   }
 });
