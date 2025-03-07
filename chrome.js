@@ -7,6 +7,7 @@ import {
   arrayUnion,
   getDocs,
   addDoc,
+  setDoc,
   getDoc,
   Timestamp,
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
@@ -34,7 +35,7 @@ chrome.runtime.onInstalled.addListener((details) => {
 
 // Handle when the user clicks the extension icon
 chrome.action.onClicked.addListener(() => {
-  chrome.tabs.create({ url: "http://localhost:5173/" });
+  chrome.tabs.create({ url: "http://localhost:5173/dashboard" });
 });
 
 async function saveUrl(datas) {
@@ -42,20 +43,48 @@ async function saveUrl(datas) {
     const storedData = await chrome.storage.sync.get("userId");
     let userDocId = storedData.userId;
 
-    const userDocRef = userDocId
-      ? doc(db, "saveProduct", userDocId)
-      : await addDoc(collection(db, "saveProduct"), { products: [] });
-
+    // If no stored userId, use the one sent from content script (datas.userId)
     if (!userDocId) {
-      userDocId = userDocRef.id;
-      await chrome.storage.sync.set({ userId: userDocId });
+      if (!datas.userId) {
+        console.error(
+          "❌ No userId found in storage or datas.userId from content script!"
+        );
+        chrome.notifications.create(`error-${Date.now()}`, {
+          type: "basic",
+          iconUrl: "image/image.png",
+          title: "Tracking Error",
+          message: "No user ID found. Please log in first.",
+          priority: 2,
+        });
+        return;
+      }
+
+      userDocId = datas.userId; // Use the userId from content script
+      await chrome.storage.sync.set({ userId: userDocId }); // Save it in storage
     }
 
-    await updateDoc(userDocRef, {
-      products: arrayUnion({ ...datas, timestamp: Timestamp.now() }),
-    });
+    // Remove `userId` from datas before saving
+    const { userId, ...productData } = datas;
 
-    // ✅ Create Chrome Notification
+    // Reference Firestore document using userDocId
+    const userDocRef = doc(db, "saveProduct", userDocId);
+
+    // Check if the document exists
+    const docSnap = await getDoc(userDocRef);
+
+    if (!docSnap.exists()) {
+      // ✅ Document does not exist, create it first
+      await setDoc(userDocRef, {
+        products: [{ ...productData, timestamp: Timestamp.now() }],
+      });
+    } else {
+      // ✅ Document exists, update it
+      await updateDoc(userDocRef, {
+        products: arrayUnion({ ...productData, timestamp: Timestamp.now() }),
+      });
+    }
+
+    // ✅ Create Chrome Notification (Success)
     chrome.notifications.create(`track-${Date.now()}`, {
       type: "basic",
       iconUrl: "image/image.png",
@@ -65,11 +94,12 @@ async function saveUrl(datas) {
     });
   } catch (error) {
     console.error("❌ Error saving URL:", error);
-    // ✅ Create Chrome Notification for error
+
+    // ✅ Create Chrome Notification (Error)
     chrome.notifications.create(`product-${Date.now()}`, {
       type: "basic",
       iconUrl: "image/image.png",
-      title: "Tracking error",
+      title: "Tracking Error",
       message: error.message,
       priority: 2,
     });
@@ -302,5 +332,28 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "saveProduct") {
     saveUrl(message.data);
+  }
+});
+
+chrome.storage.sync.get(["userId"], (result) => {
+  if (!result.userId) {
+    // No ID found, tell content script to show the input
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs.length > 0) {
+        chrome.tabs.sendMessage(tabs[0].id, {
+          action: "No Id",
+        });
+      }
+    });
+  } else {
+    // ID exists, tell content script to hide the input
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs.length > 0) {
+        chrome.tabs.sendMessage(tabs[0].id, {
+          action: "Has Id",
+          userId: result.userId, // Send the stored ID
+        });
+      }
+    });
   }
 });

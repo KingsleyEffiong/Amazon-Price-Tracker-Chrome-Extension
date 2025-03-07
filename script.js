@@ -134,6 +134,13 @@ if (isAmazonProductPage()) {
       style="width: 100%; outline: none; border: none;"
       autofocus
     />
+<input
+      type="text"
+      placeholder="Tracking Id"
+      id="userId"
+      style="width: 100%; outline: none; border: none;"
+      autofocus
+    />
     </div>
     
             <button id="saveUrl" style="
@@ -170,25 +177,40 @@ if (isAmazonProductPage()) {
         document
           .getElementById("saveUrl")
           .addEventListener("click", function () {
-            const userPrice = document.getElementById("userPrice").value || "0";
-            const email = document.getElementById("email").value || "";
+            const userPrice =
+              document.getElementById("userPrice")?.value || "0";
+            const email = document.getElementById("email")?.value || "";
+            const inputField = document.getElementById("userId");
+
+            const messageData = {
+              title,
+              price,
+              priceSymbol,
+              pricePercentage,
+              image,
+              url,
+              userPrice,
+              email,
+            };
+
+            // If userId input exists, add it to the data
+            if (inputField) {
+              const userId = inputField.value.trim().toLowerCase();
+              if (userId) {
+                messageData.userId = userId;
+              }
+            }
+
             if (!email.trim() || !userPrice.trim()) {
-              alert("Input field");
+              alert("Please fill in all required fields.");
               return;
             }
+
             chrome.runtime.sendMessage({
               action: "saveProduct",
-              data: {
-                title,
-                price,
-                priceSymbol,
-                pricePercentage,
-                image,
-                url,
-                userPrice,
-                email,
-              },
+              data: messageData, // Send the object dynamically
             });
+
             container.style.opacity = "0";
             setTimeout(() => {
               container.style.display = "none";
@@ -258,6 +280,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     } else {
       // console.log("❌ Price not found on the page.");
       alert("❌ Price not found on the page.");
+    }
+  }
+});
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action === "No Id") {
+    // No ID, show the input field
+    const inputField = document.getElementById("userId");
+    if (inputField) {
+      inputField.style.display = "block"; // Show the input field
+    }
+  }
+
+  if (message.action === "Has Id") {
+    // ID exists, remove the input field
+    const inputField = document.getElementById("userId");
+    if (inputField) {
+      inputField.style.display = "none"; // Hide the input field
     }
   }
 });
